@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import cv2
+import cv2,platform
 import urllib
 import numpy as np
 from sensor_msgs.msg import Image
@@ -14,12 +14,18 @@ import argparse
 class ipcamera(object):
     def __init__(self, url):
         try:
-            self.stream=urllib.urlopen(url)
+            self.stream=cv2.VideoCapture(url)
         except:
             rospy.logerr('Unable to open camera stream: ' + str(url))
             sys.exit() #'Unable to open camera stream')
+        if not self.stream.isOpened():
+            print "Error opening resource: " + str(url)
+            print "Maybe opencv VideoCapture can't open it"
+            sys.exit()
+        #
+        print "Correctly opened resource, starting to show feed."
         self.bytes=''
-        self.image_pub = rospy.Publisher("camera_image", Image)
+        self.image_pub = rospy.Publisher("camera_image", Image,queue_size=1000)
         self.bridge = CvBridge()
 
 if __name__ == '__main__':
@@ -30,10 +36,22 @@ if __name__ == '__main__':
     parser.add_argument('-u', '--url', default='rtsp://192.168.1.10:554/user=admin&password=&channel=1&stream=1.sdp', help='camera stream url to parse')
     args = parser.parse_args()
 
-    rospy.init_node('ipcamera', anonymous=True)
+    rospy.init_node('ipcamera', anonymous=T+rue)
     ip_camera = ipcamera(args.url)
 
     while not rospy.is_shutdown():
+        rval, frame = ip_camera.stream.read()
+        while rval:
+            cv2.imshow("Stream: " + args.url, frame)
+            rval, frame = ip_camera.stream.read()
+            key = cv2.waitKey(10)
+        # print "key pressed: " + str(key)
+        # exit on ESC, you may want to uncomment the print to know which key is ESC for you
+            if key == 27 or key == 1048603:
+                break
+    cv2.destroyWindow("preview")
+#
+    '''
         ip_camera.bytes += ip_camera.stream.read(1024)
         a = ip_camera.bytes.find('\xff\xd8')
         b = ip_camera.bytes.find('\xff\xd9')
@@ -48,3 +66,6 @@ if __name__ == '__main__':
                 cv2.imshow('IP Camera Publisher Cam',i)
             if cv2.waitKey(1) ==27: # wait until ESC key is pressed in the GUI window to stop it
                 exit(0)
+    #ip_camera.stream.release()
+
+    '''
